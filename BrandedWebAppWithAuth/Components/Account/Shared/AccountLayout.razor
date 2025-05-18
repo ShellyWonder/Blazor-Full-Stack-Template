@@ -1,5 +1,5 @@
 ﻿@inherits LayoutComponentBase
-@layout BrandedWebAppWithAuth.Components.Layout.MainLayout
+@layout BrandedWebAppWithAuth.Components.Layout.TopNavLayout
 @inject NavigationManager NavigationManager
 
 @if (HttpContext is null)
@@ -8,7 +8,9 @@
 }
 else
 {
-    @Body
+    <div class="container-xxl my-3">
+        @Body
+    </div>
 }
 
 @code {
