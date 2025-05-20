@@ -88,6 +88,8 @@ namespace BrandedWebAppWithAuth.Components.Account
             {
                 var userId = principal.FindFirst(options.ClaimsIdentity.UserIdClaimType)?.Value;
                 var email = principal.FindFirst(options.ClaimsIdentity.EmailClaimType)?.Value;
+                var firstName = principal.FindFirst("FirstName")?.Value;
+                var lastName = principal.FindFirst("LastName")?.Value;
 
                 if (userId != null && email != null)
                 {
@@ -95,6 +97,8 @@ namespace BrandedWebAppWithAuth.Components.Account
                     {
                         UserId = userId,
                         Email = email,
+                        FirstName =firstName ?? string.Empty,
+                        LastName = lastName ?? string.Empty
                     });
                 }
             }
