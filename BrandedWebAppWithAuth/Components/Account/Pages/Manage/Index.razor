@@ -20,7 +20,17 @@
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" role="alert" />
             <div class="form-floating mb-3">
-                <input type="text" value="@username" class="form-control" placeholder="Please choose your username." disabled />
+                <InputText id=firstName @bind-Value="Input.FirstName" class="form-control" placeholder="Please enter your first name." />
+                <label for="firstName" class="form-label">First Name</label>
+                <ValidationMessage For="() => Input.FirstName" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputText id=lastName @bind-Value="Input.LastName" class="form-control" placeholder="Please enter your last name." />
+                <label for="lastName" class="form-label">Last Name</label>
+                <ValidationMessage For="() => Input.LastName" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <input type="text" value="@username" class="form-control" placeholder="User name is an email address." disabled />
                 <label for="username" class="form-label">Username</label>
             </div>
             <div class="form-floating mb-3">
@@ -28,6 +38,7 @@
                 <label for="phone-number" class="form-label">Phone number</label>
                 <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
             </div>
+           
             <button type="submit" class="w-100 btn btn-lg btn-primary">Save</button>
         </EditForm>
     </div>
@@ -35,6 +46,8 @@
 
 @code {
     private ApplicationUser user = default!;
+    private string firstName = string.Empty;
+    private string lastName = string.Empty;
     private string? username;
     private string? phoneNumber;
 
@@ -49,7 +62,11 @@
         user = await UserAccessor.GetRequiredUserAsync(HttpContext);
         username = await UserManager.GetUserNameAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
+        firstName = user.FirstName;
+        lastName = user.LastName;
 
+        Input.FirstName ??= firstName;
+        Input.LastName ??= lastName;
         Input.PhoneNumber ??= phoneNumber;
     }
 
@@ -63,6 +80,17 @@
                 RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set phone number.", HttpContext);
             }
         }
+        if (firstName != Input.FirstName || lastName != Input.LastName)
+        {
+            user.FirstName = Input.FirstName!;
+            user.LastName = Input.LastName!;
+            var updateResult = await UserManager.UpdateAsync(user);
+            
+            if (!updateResult.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to update profile.", HttpContext);
+            }
+        }
 
         await SignInManager.RefreshSignInAsync(user);
         RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
@@ -70,6 +98,14 @@
 
     private sealed class InputModel
     {
+        [Required]
+        [Display(Name = "First Name")]
+        public string? FirstName { get; set; }
+
+        [Required]
+        [Display(Name = "Last Name")]
+        public string? LastName { get; set; }
+
         [Phone]
         [Display(Name = "Phone number")]
         public string? PhoneNumber { get; set; }
