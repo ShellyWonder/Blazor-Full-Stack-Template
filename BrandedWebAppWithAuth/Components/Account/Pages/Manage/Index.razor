@@ -1,13 +1,16 @@
 ﻿@page "/Account/Manage"
 
 @using System.ComponentModel.DataAnnotations
+@using BrandedWebAppWithAuth.Helpers
 @using Microsoft.AspNetCore.Identity
 @using BrandedWebAppWithAuth.Data
+@using Microsoft.EntityFrameworkCore
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityUserAccessor UserAccessor
 @inject IdentityRedirectManager RedirectManager
+@inject ApplicationDbContext _context
 
 <PageTitle>Profile</PageTitle>
 
@@ -16,7 +19,7 @@
 
 <div class="row">
     <div class="col-md-6">
-        <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post">
+        <EditForm Model="Input" FormName="profile" OnValidSubmit="OnValidSubmitAsync" method="post" enctype="multipart/form-data">
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" role="alert" />
             <div class="form-floating mb-3">
@@ -38,7 +41,12 @@
                 <label for="phone-number" class="form-label">Phone number</label>
                 <ValidationMessage For="() => Input.PhoneNumber" class="text-danger" />
             </div>
-           
+            <img src="@profilePictureUrl" class="img-fluid p-3 rounded" id="profilePic" />
+            <div class="mb-3">
+                <label for="Input.profilePicture" class="form-label">Profile Image</label>
+                <input type="file" class="form-control" name="Input.ProfilePicture" accept=".jpg, .jpeg, .png .svg .gif"
+                       onchange="document.getElementById('profilePic').src = window.URL.createObjectURL(this.files[0])" />
+            </div>
             <button type="submit" class="w-100 btn btn-lg btn-primary">Save</button>
         </EditForm>
     </div>
@@ -50,6 +58,7 @@
     private string lastName = string.Empty;
     private string? username;
     private string? phoneNumber;
+    private string? profilePictureUrl;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -68,34 +77,75 @@
         Input.FirstName ??= firstName;
         Input.LastName ??= lastName;
         Input.PhoneNumber ??= phoneNumber;
+
+        profilePictureUrl = user.ProfilePictureId.HasValue ? $"/uploads/{user.ProfilePictureId}" : ImageHelper.DefaultProfilePictureUrl;
     }
 
     private async Task OnValidSubmitAsync()
     {
-        if (Input.PhoneNumber != phoneNumber)
-        {
-            var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
-            if (!setPhoneResult.Succeeded)
-            {
-                RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set phone number.", HttpContext);
-            }
-        }
-        if (firstName != Input.FirstName || lastName != Input.LastName)
-        {
-            user.FirstName = Input.FirstName!;
-            user.LastName = Input.LastName!;
-            var updateResult = await UserManager.UpdateAsync(user);
-            
-            if (!updateResult.Succeeded)
-            {
-                RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to update profile.", HttpContext);
-            }
-        }
+        await UpdateProfilePictureAsync();
+
+        await UpdatePhoneNumberAsync();
+
+        await UpdateNamesAsync();
 
         await SignInManager.RefreshSignInAsync(user);
         RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
     }
 
+    #region HELPER METHODS
+    private async Task UpdateProfilePictureAsync()
+    {
+        if (Input.ProfilePicture is null) return;
+
+        try
+        {
+            //save the new profile picture
+            ImageUpload newProfilePic = await ImageHelper.GetImageUploadAsync(Input.ProfilePicture);
+            _context.Add(newProfilePic);
+
+            //delete previous profile image
+            ImageUpload? oldProfilePic = await _context.Images.FirstOrDefaultAsync(i => i.Id == user.ProfilePictureId);
+
+            if (oldProfilePic is not null) _context.Images.Remove(oldProfilePic);
+
+            user.ProfilePictureId = newProfilePic.Id;
+            _context.Users.Update(user);
+
+            //save the new profile image to the database
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception)
+        {
+
+            RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to update profile image.", HttpContext);
+        }
+
+    }
+
+    private async Task UpdatePhoneNumberAsync()
+    {
+        if (Input.PhoneNumber == phoneNumber) return; // No change in phone number
+
+        var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
+        if (!setPhoneResult.Succeeded) RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to update phone number.", HttpContext);
+
+    }
+
+    private async Task UpdateNamesAsync()
+    {
+        if (firstName == Input.FirstName || lastName == Input.LastName) return; // No change in names
+
+        user.FirstName = Input.FirstName!;
+        user.LastName = Input.LastName!;
+        var updateResult = await UserManager.UpdateAsync(user);
+
+        if (!updateResult.Succeeded) RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to update profile.", HttpContext);
+
+    }
+    #endregion
+
+    #region INPUT MODEL
     private sealed class InputModel
     {
         [Required]
@@ -109,5 +159,8 @@
         [Phone]
         [Display(Name = "Phone number")]
         public string? PhoneNumber { get; set; }
+
+        public IFormFile ProfilePicture { get; set; } = default!;
     }
+    #endregion
 }
