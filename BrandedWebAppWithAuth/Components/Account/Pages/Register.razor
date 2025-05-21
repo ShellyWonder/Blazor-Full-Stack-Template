@@ -3,6 +3,7 @@
 @using System.ComponentModel.DataAnnotations
 @using System.Text
 @using System.Text.Encodings.Web
+@using BrandedWebAppWithAuth.Helpers
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
 @using BrandedWebAppWithAuth.Data
@@ -14,6 +15,7 @@
 @inject ILogger<Register> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
+@inject ApplicationDbContext _context
 
 @*Instructions for adding new data fields to the registration form 
     are available at RegisterInstruction.razor.cs
@@ -26,7 +28,7 @@
 <div class="row">
     <div class="col-md-4">
         <StatusMessage Message="@Message" />
-        <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="RegisterUser" FormName="register">
+        <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="RegisterUser" FormName="register" enctype="multipart/form-data">
             <DataAnnotationsValidator />
             <h2>Create a new account.</h2>
             <hr />
@@ -57,6 +59,18 @@
                 <label for="confirm-password">Confirm Password</label>
                 <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
             </div>
+            <div class="mb-3 row">
+                <div class="col-lg-4">
+                    <img src="@ImageHelper.DefaultProfilePictureUrl" class="img-fluid" id="profilePicPreview" />
+                </div>
+                <div class="col-lg-8">
+                    <label class="form-label" for="Input.ProfilePicture">Profile Image</label>
+                    <input type="file" class="form-control"
+                           name="Input.ProfilePicture" accept=".jpg, .jpeg, .png .svg .gif"
+                           onchange="document.getElementById('profilePicPreview').src = window.URL.createObjectURL(this.file[0])" />
+                </div>
+            </div>
+
             <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
         </EditForm>
     </div>
@@ -86,6 +100,7 @@
         user.FirstName = Input.FirstName;
         user.LastName = Input.LastName;
 
+
         await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
         var emailStore = GetEmailStore();
         await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
@@ -99,6 +114,22 @@
 
         Logger.LogInformation("User created a new account with password.");
 
+        if (Input.ProfilePicture is not null)
+        {
+            try
+            {
+                ImageUpload profilePic = await ImageHelper.GetImageUploadAsync(Input.ProfilePicture);
+                user.ProfilePicture = profilePic;
+                _context.Images.Add(profilePic);
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                //register the user with default image if upload fails; user can update it later
+                Console.WriteLine($"Error uploading image: {ex.Message}");
+            }
+        }
         var userId = await UserManager.GetUserIdAsync(user);
         var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
         code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
@@ -169,5 +200,6 @@
         [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; } = "";
 
+        public IFormFile? ProfilePicture { get; set; }
     }
 }

@@ -1,3 +1,4 @@
+using BrandedWebAppWithAuth.Models;
 using Microsoft.AspNetCore.Identity;
 
 namespace BrandedWebAppWithAuth.Data
@@ -8,6 +9,11 @@ namespace BrandedWebAppWithAuth.Data
         //extending IdentityUser with custom properties
         public required string FirstName { get; set; } 
         public required string LastName { get; set; }
+
+        public Guid? ProfilePictureId { get; set; } 
+
+        //navigation property within Db for profile picture
+        public virtual ImageUpload? ProfilePicture { get; set; } //navigation property for profile picture
     }
 
 }
